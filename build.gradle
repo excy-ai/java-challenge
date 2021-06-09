@@ -66,6 +66,8 @@ dependencies {
   implementation "com.google.protobuf:protobuf-java:3.17.2"
   implementation 'net.devh:grpc-server-spring-boot-starter:2.12.0.RELEASE'
 
+  // graph
+  compile 'com.google.guava:guava:30.1.1-jre'
   // Annotations
   compileOnly 'org.projectlombok:lombok'
   compileOnly 'javax.annotation:javax.annotation-api'
