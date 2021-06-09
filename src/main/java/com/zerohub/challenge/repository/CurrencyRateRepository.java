@@ -27,6 +27,9 @@ public class CurrencyRateRepository {
   }
 
   public void addCurrencyRate(final String baseCurrency, final String pairCurrency, final String rawRate) throws CurrencyRateException {
+    if (baseCurrency.equals(pairCurrency)) {
+      throw new CurrencyRateException("Base and pair currency cannot be equal.");
+    }
     var rate = new BigDecimal(rawRate);
     if (rate.doubleValue() < 10E-9) {
       throw new CurrencyRateException("Unable to add currency rate. Rate cannot be that low.");
