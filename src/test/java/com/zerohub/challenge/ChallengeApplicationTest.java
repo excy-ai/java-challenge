@@ -1,7 +1,15 @@
 package com.zerohub.challenge;
 
+import com.google.protobuf.Empty;
 import com.zerohub.challenge.proto.ConvertRequest;
+import com.zerohub.challenge.proto.ConvertResponse;
 import com.zerohub.challenge.proto.PublishRequest;
+import com.zerohub.challenge.proto.RatesServiceGrpc;
+import com.zerohub.challenge.repository.CurrencyRateRepository;
+import com.zerohub.challenge.service.RateServiceImpl;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
+import io.grpc.internal.testing.StreamRecorder;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,40 +35,43 @@ public class ChallengeApplicationTest {
   private static final String UAH = "UAH";
   private static final String RUB = "RUB";
   private static final String LTC = "LTC";
+  private RateServiceImpl rateService;
 
   @BeforeEach
   public void setup() {
+    rateService = new RateServiceImpl(new CurrencyRateRepository());
     var rates = List.of(
       toPublishRequest(new String[]{BTC, EUR, "50000.0000"}),
       toPublishRequest(new String[]{EUR, USD, "1.2000"}),
-      toPublishRequest(new String[]{RUB, USD, "80.0000"}),
+      toPublishRequest(new String[]{USD, RUB, "80.0000"}),
       toPublishRequest(new String[]{UAH, RUB, "4.0000"}),
       toPublishRequest(new String[]{LTC, BTC, "0.0400"}),
       toPublishRequest(new String[]{LTC, USD, "2320.0000"})
     );
+    StreamRecorder<Empty> responseObserver = StreamRecorder.create();
     for (var rate : rates) {
-      // publish new data to service
+      rateService.publish(rate, responseObserver);
     }
   }
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("testData")
   void ConvertTest(String ignore, ConvertRequest request, BigDecimal expectedPrice) {
-
-    // Request service and get price
-
-    assertEquals(expectedPrice, new BigDecimal("0.0000"));
+    StreamRecorder<ConvertResponse> responseObserver = StreamRecorder.create();
+    rateService.convert(request, responseObserver);
+    String actual = responseObserver.getValues().get(0).getPrice();
+    assertEquals(expectedPrice, new BigDecimal(actual));
   }
 
   private static Stream<Arguments> testData() {
 
     return Stream.of(
-      Arguments.of("Same currency", toConvertRequest(new String[]{BTC, BTC, "0.9997"}), "1.0000"),
+      Arguments.of("Same currency", toConvertRequest(new String[]{BTC, BTC, "0.9997"}), "0.9997"),
       Arguments.of("Simple conversion", toConvertRequest(new String[]{EUR, BTC, "50000.0000"}), "1.0000"),
       Arguments.of("Reversed conversion", toConvertRequest(new String[]{BTC, EUR, "1.0000"}), "50000.0000"),
-      Arguments.of("Convert with one hop", toConvertRequest(new String[]{BTC, USD, "1.0000"}), "60000.0000"),
-      Arguments.of("Convert with two hops", toConvertRequest(new String[]{BTC, RUB, "1.0000"}), "4800000.0000"),
-      Arguments.of("Reversed conversion with two hops", toConvertRequest(new String[]{RUB, EUR, "4800000.0000"}), "1.0000")
+      Arguments.of("Convert with one hop", toConvertRequest(new String[]{BTC, USD, "1.0000"}), "58000.0000"),
+      Arguments.of("Convert with two hops", toConvertRequest(new String[]{BTC, RUB, "1.0000"}), "4640000.0000"),
+      Arguments.of("Reversed conversion with two hops", toConvertRequest(new String[]{RUB, EUR, "96.0000"}), "1.0000")
     );
   }
 
