@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @ExtendWith(SpringExtension.class)
 @DirtiesContext
@@ -35,6 +36,8 @@ public class ChallengeApplicationTest {
   private static final String UAH = "UAH";
   private static final String RUB = "RUB";
   private static final String LTC = "LTC";
+  private static final String JOD = "JOD";
+  private static final String GBP = "GBP";
   private RateServiceImpl rateService;
 
   @BeforeEach
@@ -46,7 +49,8 @@ public class ChallengeApplicationTest {
       toPublishRequest(new String[]{USD, RUB, "80.0000"}),
       toPublishRequest(new String[]{UAH, RUB, "4.0000"}),
       toPublishRequest(new String[]{LTC, BTC, "0.0400"}),
-      toPublishRequest(new String[]{LTC, USD, "2320.0000"})
+      toPublishRequest(new String[]{LTC, USD, "2320.0000"}),
+      toPublishRequest(new String[]{JOD, GBP, "1.0000"})
     );
     StreamRecorder<Empty> responseObserver = StreamRecorder.create();
     for (var rate : rates) {
@@ -72,6 +76,39 @@ public class ChallengeApplicationTest {
       Arguments.of("Convert with one hop", toConvertRequest(new String[]{BTC, USD, "1.0000"}), "58000.0000"),
       Arguments.of("Convert with two hops", toConvertRequest(new String[]{BTC, RUB, "1.0000"}), "4640000.0000"),
       Arguments.of("Reversed conversion with two hops", toConvertRequest(new String[]{RUB, EUR, "96.0000"}), "1.0000")
+    );
+  }
+
+  @ParameterizedTest(name = "{1}")
+  @MethodSource("notFoundTestData")
+  void NotFoundTest(String ignore, ConvertRequest request) {
+    StreamRecorder<ConvertResponse> responseObserver = StreamRecorder.create();
+    rateService.convert(request, responseObserver);
+    assertNotNull(responseObserver.getError());
+  }
+
+  private static Stream<Arguments> notFoundTestData() {
+
+    return Stream.of(
+      Arguments.of("Not found BTC/JOD", toConvertRequest(new String[]{BTC, JOD, "1"})),
+      Arguments.of("Not found RUB/JOD", toConvertRequest(new String[]{RUB, JOD, "1"})),
+      Arguments.of("Not found USD/JOD", toConvertRequest(new String[]{USD, JOD, "1"}))
+    );
+  }
+
+  @ParameterizedTest(name = "{2}")
+  @MethodSource("cantPublishData")
+  void CantPublishTest(String ignore, PublishRequest request) {
+    StreamRecorder<Empty> responseObserver = StreamRecorder.create();
+    rateService.publish(request, responseObserver);
+    assertNotNull(responseObserver.getError());
+  }
+
+  private static Stream<Arguments> cantPublishData() {
+
+    return Stream.of(
+      Arguments.of("Can't publish JOD/JOD ", toPublishRequest(new String[]{JOD, JOD, "1"})),
+      Arguments.of("Can't publish RUB/RUB ", toPublishRequest(new String[]{RUB, RUB, "1"}))
     );
   }
 
